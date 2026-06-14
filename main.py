@@ -1,254 +1,281 @@
+import tkinter as tk
+from tkinter import ttk, filedialog, messagebox
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from scipy import stats
 
 
-# =====================================================
-# Group 05 - Basic Descriptive Statistics Dashboard
-# Topic: Statistics
-# Dataset: Synthetic Student Grades
-# =====================================================
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+def generate_sample_data():
+    """Return synthetic student grades (100 values, clipped 0–100)."""
+    np.random.seed(42)
+    return np.random.normal(loc=75, scale=12, size=100).clip(0, 100)
 
 
-# -----------------------------
-# 1. Data Generation / Loading
-# -----------------------------
-np.random.seed(42)
-
-grades = np.random.normal(loc=75, scale=12, size=100).clip(0, 100)
-
-df = pd.DataFrame({
-    "Grade": grades
-})
-
-
-# -----------------------------
-# 2. Descriptive Statistics
-# -----------------------------
-rounded_grades = np.round(grades)
-
-minimum = np.min(grades)
-maximum = np.max(grades)
-mean = np.mean(grades)
-median = np.median(grades)
-mode = stats.mode(rounded_grades, keepdims=True).mode[0]
-variance = np.var(grades)
-standard_deviation = np.std(grades)
-data_range = maximum - minimum
-skewness = stats.skew(grades)
-kurtosis = stats.kurtosis(grades)
-
-q1 = np.percentile(grades, 25)
-q2 = np.percentile(grades, 50)
-q3 = np.percentile(grades, 75)
-iqr = q3 - q1
+def compute_stats(data):
+    """Return a dict of descriptive statistics for *data*."""
+    mode_result = stats.mode(data, keepdims=True)
+    return {
+        "Count":    len(data),
+        "Min":      np.min(data),
+        "Max":      np.max(data),
+        "Mean":     np.mean(data),
+        "Median":   np.median(data),
+        "Mode":     mode_result.mode[0],
+        "Std Dev":  np.std(data, ddof=1),
+        "Variance": np.var(data, ddof=1),
+        "Skewness": stats.skew(data),
+        "Kurtosis": stats.kurtosis(data),
+        "Q1":       np.percentile(data, 25),
+        "Q3":       np.percentile(data, 75),
+        "IQR":      np.percentile(data, 75) - np.percentile(data, 25),
+    }
 
 
-# -----------------------------
-# 3. Print Results Clearly
-# -----------------------------
-print("\nGROUP 05 BASIC DESCRIPTIVE STATISTICS DASHBOARD")
-print("=" * 55)
-print("\nDataset Preview:")
-print(df.head())
+# ── main app ─────────────────────────────────────────────────────────────────
 
-print("\nDescriptive Statistics:")
-print(df.describe().round(2))
+class StatsDashboard(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Basic Descriptive Statistics Dashboard")
+        self.geometry("1100x720")
+        self.resizable(True, True)
+        self.configure(bg="#f0f4f8")
 
-print("\nAdditional Statistics:")
-print(f"Mode                : {mode:.0f}")
-print(f"Variance            : {variance:.2f}")
-print(f"Standard Deviation  : {standard_deviation:.2f}")
-print(f"Range               : {data_range:.2f}")
-print(f"Skewness            : {skewness:.4f}")
-print(f"Kurtosis            : {kurtosis:.4f}")
-print(f"Q1                  : {q1:.2f}")
-print(f"Median / Q2         : {q2:.2f}")
-print(f"Q3                  : {q3:.2f}")
-print(f"IQR                 : {iqr:.2f}")
+        self.data = generate_sample_data()   # active dataset
+
+        self._build_ui()
+        self._refresh()                       # draw everything on start
+
+    # ── UI construction ──────────────────────────────────────────────────────
+
+    def _build_ui(self):
+        # ── top toolbar ──────────────────────────────────────────────────────
+        toolbar = tk.Frame(self, bg="#1e3a5f", pady=8)
+        toolbar.pack(fill="x")
+
+        tk.Label(
+            toolbar, text="📊  Descriptive Statistics Dashboard",
+            font=("Helvetica", 15, "bold"),
+            bg="#1e3a5f", fg="white"
+        ).pack(side="left", padx=15)
+
+        btn_style = {"bg": "#4a90d9", "fg": "white", "relief": "flat",
+                     "font": ("Helvetica", 10, "bold"), "padx": 10, "pady": 4,
+                     "cursor": "hand2"}
+
+        tk.Button(toolbar, text="🔄  New Sample",
+                  command=self._new_sample, **btn_style).pack(side="right", padx=6)
+        tk.Button(toolbar, text="📂  Load CSV",
+                  command=self._load_csv, **btn_style).pack(side="right", padx=6)
+
+        # ── main body: left = stats table, right = charts ────────────────────
+        body = tk.Frame(self, bg="#f0f4f8")
+        body.pack(fill="both", expand=True, padx=12, pady=10)
+
+        # left panel – stats table
+        left = tk.Frame(body, bg="#f0f4f8")
+        left.pack(side="left", fill="y", padx=(0, 10))
+
+        tk.Label(left, text="Summary Statistics",
+                 font=("Helvetica", 12, "bold"),
+                 bg="#f0f4f8", fg="#1e3a5f").pack(anchor="w", pady=(0, 6))
+
+        self._build_stats_table(left)
+
+        # right panel – charts
+        right = tk.Frame(body, bg="#f0f4f8")
+        right.pack(side="left", fill="both", expand=True)
+
+        tk.Label(right, text="Visualizations",
+                 font=("Helvetica", 12, "bold"),
+                 bg="#f0f4f8", fg="#1e3a5f").pack(anchor="w", pady=(0, 6))
+
+        self._build_charts(right)
+
+        # ── status bar ───────────────────────────────────────────────────────
+        self.status_var = tk.StringVar(value="Using generated sample data (n=100)")
+        tk.Label(self, textvariable=self.status_var,
+                 font=("Helvetica", 9), bg="#d0dce8", fg="#333",
+                 anchor="w", padx=10).pack(fill="x", side="bottom")
+
+    def _build_stats_table(self, parent):
+        """Create the Treeview that shows stat name / value."""
+        frame = tk.Frame(parent, bg="white", bd=1, relief="solid")
+        frame.pack(fill="y", expand=True)
+
+        cols = ("Statistic", "Value")
+        self.tree = ttk.Treeview(frame, columns=cols, show="headings",
+                                 height=14, selectmode="none")
+
+        style = ttk.Style()
+        style.configure("Treeview.Heading",
+                         font=("Helvetica", 10, "bold"), background="#1e3a5f",
+                         foreground="black")
+        style.configure("Treeview", font=("Helvetica", 10), rowheight=26)
+        style.map("Treeview", background=[("selected", "#d0e8ff")])
+
+        self.tree.heading("Statistic", text="Statistic")
+        self.tree.heading("Value",     text="Value")
+        self.tree.column("Statistic",  width=120, anchor="w")
+        self.tree.column("Value",      width=100, anchor="e")
+
+        self.tree.tag_configure("odd",  background="#f7f9fc")
+        self.tree.tag_configure("even", background="#ffffff")
+
+        self.tree.pack(fill="both", expand=True)
+
+    def _build_charts(self, parent):
+        """Embed a matplotlib Figure with histogram + box-plot."""
+        self.fig, (self.ax_hist, self.ax_box) = plt.subplots(
+            1, 2, figsize=(8, 4.2), facecolor="#f0f4f8"
+        )
+        self.fig.subplots_adjust(wspace=0.35)
+
+        self.canvas = FigureCanvasTkAgg(self.fig, master=parent)
+        self.canvas.get_tk_widget().pack(fill="both", expand=True)
+
+    # ── data / refresh logic ─────────────────────────────────────────────────
+
+    def _refresh(self):
+        """Re-compute stats and redraw charts from self.data."""
+        s = compute_stats(self.data)
+        self._update_table(s)
+        self._update_charts(s)
+
+    def _update_table(self, s):
+        """Clear and repopulate the Treeview."""
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        for i, (name, val) in enumerate(s.items()):
+            tag = "odd" if i % 2 else "even"
+            self.tree.insert("", "end",
+                             values=(name, f"{val:.4f}"),
+                             tags=(tag,))
+
+    def _update_charts(self, s):
+        """Redraw histogram and box-plot."""
+        self.ax_hist.clear()
+        self.ax_box.clear()
+
+        grades = self.data
+
+        # ── histogram ────────────────────────────────────────────────────────
+        self.ax_hist.hist(grades, bins=20, color="#4a90d9",
+                          edgecolor="white", alpha=0.85)
+        self.ax_hist.axvline(s["Mean"],   color="#e74c3c",
+                             linestyle="--", linewidth=1.8,
+                             label=f"Mean = {s['Mean']:.1f}")
+        self.ax_hist.axvline(s["Median"], color="#2ecc71",
+                             linestyle="--", linewidth=1.8,
+                             label=f"Median = {s['Median']:.1f}")
+        self.ax_hist.set_title("Grade Distribution", fontsize=11, fontweight="bold")
+        self.ax_hist.set_xlabel("Grade")
+        self.ax_hist.set_ylabel("Frequency")
+        self.ax_hist.legend(fontsize=9)
+        self.ax_hist.set_facecolor("#fafcff")
+
+        # ── box-plot ─────────────────────────────────────────────────────────
+        bp = self.ax_box.boxplot(grades, vert=True, patch_artist=True,
+                                 boxprops=dict(facecolor="#4a90d9", alpha=0.6),
+                                 medianprops=dict(color="#e74c3c", linewidth=2),
+                                 whiskerprops=dict(linewidth=1.5),
+                                 capprops=dict(linewidth=1.5),
+                                 flierprops=dict(marker="o", markerfacecolor="#e74c3c",
+                                                 markersize=5, alpha=0.6))
+        self.ax_box.set_title("Box Plot of Grades", fontsize=11, fontweight="bold")
+        self.ax_box.set_ylabel("Grade")
+        self.ax_box.set_xticks([])
+        self.ax_box.set_facecolor("#fafcff")
+
+        # annotate quartiles
+        for label, val, side in [("Q1", s["Q1"], -0.35),
+                                   ("Med", s["Median"], -0.35),
+                                   ("Q3", s["Q3"], -0.35)]:
+            self.ax_box.text(1 + side, val, f"{label}={val:.1f}",
+                             fontsize=7.5, va="center", color="#333")
+
+        self.fig.tight_layout()
+        self.canvas.draw()
+
+    # ── button callbacks ─────────────────────────────────────────────────────
+
+    def _new_sample(self):
+        """Generate a fresh random dataset."""
+        np.random.seed(None)   # different seed each time
+        self.data = np.random.normal(loc=75, scale=12, size=100).clip(0, 100)
+        self.status_var.set("Using newly generated sample data (n=100)")
+        self._refresh()
+
+    def _load_csv(self):
+        """Let the user pick a CSV; use its first numeric column."""
+        path = filedialog.askopenfilename(
+            title="Open CSV file",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            df = pd.read_csv(path)
+            numeric_cols = df.select_dtypes(include="number").columns.tolist()
+            if not numeric_cols:
+                messagebox.showerror("No numeric data",
+                                     "The CSV has no numeric columns.")
+                return
+
+            # if multiple numeric columns, let user pick one
+            if len(numeric_cols) == 1:
+                col = numeric_cols[0]
+            else:
+                col = self._pick_column(numeric_cols)
+                if col is None:
+                    return
+
+            self.data = df[col].dropna().to_numpy()
+            self.status_var.set(
+                f"Loaded '{col}' from {path.split('/')[-1]}  (n={len(self.data)})"
+            )
+            self._refresh()
+        except Exception as exc:
+            messagebox.showerror("Error loading CSV", str(exc))
+
+    def _pick_column(self, columns):
+        """Simple popup to choose one column from a list."""
+        win = tk.Toplevel(self)
+        win.title("Choose column")
+        win.geometry("260x200")
+        win.resizable(False, False)
+        win.grab_set()
+
+        tk.Label(win, text="Select a numeric column:",
+                 font=("Helvetica", 10)).pack(pady=10)
+
+        chosen = tk.StringVar(value=columns[0])
+        lb = tk.Listbox(win, listvariable=tk.StringVar(value=columns),
+                        selectmode="single", height=6)
+        lb.pack(fill="x", padx=20)
+        lb.select_set(0)
+
+        result = [None]
+
+        def ok():
+            sel = lb.curselection()
+            result[0] = columns[sel[0]] if sel else columns[0]
+            win.destroy()
+
+        tk.Button(win, text="OK", command=ok,
+                  bg="#4a90d9", fg="white", padx=12).pack(pady=10)
+        self.wait_window(win)
+        return result[0]
 
 
-# -----------------------------
-# 4. Summary Statistics Table
-# -----------------------------
-summary = pd.DataFrame({
-    "Statistic": [
-        "Minimum",
-        "Maximum",
-        "Mean",
-        "Median",
-        "Mode",
-        "Variance",
-        "Standard Deviation",
-        "Range",
-        "Skewness",
-        "Kurtosis",
-        "Q1",
-        "Q3",
-        "IQR"
-    ],
-    "Value": [
-        minimum,
-        maximum,
-        mean,
-        median,
-        mode,
-        variance,
-        standard_deviation,
-        data_range,
-        skewness,
-        kurtosis,
-        q1,
-        q3,
-        iqr
-    ]
-})
+# ── entry point ───────────────────────────────────────────────────────────────
 
-summary["Value"] = summary["Value"].round(2)
-
-
-# -----------------------------
-# 5. Dashboard Layout
-# -----------------------------
-fig, axes = plt.subplots(2, 2, figsize=(15, 9))
-
-fig.suptitle(
-    "Group 05 Basic Descriptive Statistics Dashboard",
-    fontsize=18,
-    fontweight="bold"
-)
-
-
-# -----------------------------
-# Histogram with Mean and Median Overlays
-# -----------------------------
-axes[0, 0].hist(
-    grades,
-    bins=20,
-    color="steelblue",
-    edgecolor="white"
-)
-
-axes[0, 0].axvline(
-    mean,
-    color="red",
-    linestyle="--",
-    linewidth=2,
-    label=f"Mean = {mean:.2f}"
-)
-
-axes[0, 0].axvline(
-    median,
-    color="green",
-    linestyle="--",
-    linewidth=2,
-    label=f"Median = {median:.2f}"
-)
-
-axes[0, 0].set_title("Grade Distribution")
-axes[0, 0].set_xlabel("Grade")
-axes[0, 0].set_ylabel("Frequency")
-axes[0, 0].legend()
-axes[0, 0].grid(alpha=0.3)
-
-
-# -----------------------------
-# Box Plot
-# -----------------------------
-axes[0, 1].boxplot(
-    grades,
-    vert=True,
-    patch_artist=True,
-    boxprops=dict(facecolor="steelblue", alpha=0.6),
-    medianprops=dict(color="red", linewidth=2),
-    whiskerprops=dict(linewidth=1.5),
-    capprops=dict(linewidth=1.5),
-    flierprops=dict(marker="o", markerfacecolor="orange", markersize=6)
-)
-
-axes[0, 1].set_title("Box Plot of Grades")
-axes[0, 1].set_ylabel("Grade")
-axes[0, 1].grid(alpha=0.3)
-
-box_text = f"""
-Q1 = {q1:.2f}
-Median = {median:.2f}
-Q3 = {q3:.2f}
-IQR = {iqr:.2f}
-"""
-
-axes[0, 1].text(
-    1.15,
-    median,
-    box_text,
-    fontsize=10,
-    verticalalignment="center"
-)
-
-
-# -----------------------------
-# Summary Statistics Table
-# -----------------------------
-axes[1, 0].axis("off")
-axes[1, 0].set_title("Summary Statistics Table")
-
-table = axes[1, 0].table(
-    cellText=summary.values,
-    colLabels=summary.columns,
-    cellLoc="center",
-    loc="center"
-)
-
-table.auto_set_font_size(False)
-table.set_fontsize(9)
-table.scale(1, 1.35)
-
-
-# -----------------------------
-# Interpretation
-# -----------------------------
-axes[1, 1].axis("off")
-axes[1, 1].set_title("Interpretation of Results")
-
-if skewness < 0:
-    skew_text = "The data is slightly left-skewed."
-elif skewness > 0:
-    skew_text = "The data is slightly right-skewed."
-else:
-    skew_text = "The data is approximately symmetrical."
-
-interpretation = f"""
-The dataset contains 100 synthetic student grades.
-
-The mean grade is {mean:.2f}, while the median is {median:.2f}.
-This means that most student grades are centered around the mid-70s.
-
-The minimum grade is {minimum:.2f}, and the maximum grade is {maximum:.2f}.
-The range is {data_range:.2f}, which shows the difference between
-the highest and lowest grades.
-
-The standard deviation is {standard_deviation:.2f}.
-This means the grades have a moderate spread around the average.
-
-The skewness is {skewness:.2f}.
-{skew_text}
-
-The box plot shows the quartiles, median, whiskers, and possible outliers.
-Overall, the student grades are mostly clustered near the average.
-"""
-
-axes[1, 1].text(
-    0.05,
-    0.5,
-    interpretation,
-    fontsize=11,
-    verticalalignment="center"
-)
-
-
-# -----------------------------
-# Show Dashboard
-# -----------------------------
-plt.tight_layout(rect=[0, 0, 1, 0.94])
-plt.show()
+if __name__ == "__main__":
+    app = StatsDashboard()
+    app.mainloop()
