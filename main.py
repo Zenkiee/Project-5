@@ -23,6 +23,7 @@ def compute_stats(data):
         "Count":    len(data),
         "Min":      np.min(data),
         "Max":      np.max(data),
+        "Range":    np.max(data) - np.min(data),
         "Mean":     np.mean(data),
         "Median":   np.median(data),
         "Mode":     mode_result.mode[0],
@@ -96,7 +97,19 @@ class StatsDashboard(tk.Tk):
                  bg="#f0f4f8", fg="#1e3a5f").pack(anchor="w", pady=(0, 6))
 
         self._build_charts(right)
+        # ── interpretation panel ─────────────────────────────────────────────
+        interp_frame = tk.Frame(self, bg="#e8f0fe", bd=1, relief="solid")
+        interp_frame.pack(fill="x", padx=12, pady=(0, 6))
 
+        tk.Label(interp_frame, text="📝  Interpretation",
+                 font=("Helvetica", 10, "bold"),
+                 bg="#e8f0fe", fg="#1e3a5f").pack(anchor="w", padx=10, pady=(6, 2))
+
+        self.interp_var = tk.StringVar()
+        tk.Label(interp_frame, textvariable=self.interp_var,
+                 font=("Helvetica", 9), bg="#e8f0fe", fg="#333",
+                 anchor="w", justify="left", wraplength=1060,
+                 padx=10).pack(anchor="w", pady=(0, 6))
         # ── status bar ───────────────────────────────────────────────────────
         self.status_var = tk.StringVar(value="Using generated sample data (n=100)")
         tk.Label(self, textvariable=self.status_var,
@@ -145,6 +158,7 @@ class StatsDashboard(tk.Tk):
         """Re-compute stats and redraw charts from self.data."""
         s = compute_stats(self.data)
         self._update_table(s)
+        self._update_interpretation(s)
         self._update_charts(s)
 
     def _update_table(self, s):
@@ -157,6 +171,27 @@ class StatsDashboard(tk.Tk):
             self.tree.insert("", "end",
                              values=(name, f"{val:.4f}"),
                              tags=(tag,))
+    def _update_interpretation(self, s):
+        skew_desc = (
+            "approximately symmetric" if abs(s["Skewness"]) < 0.5
+            else ("positively skewed (tail to the right)" if s["Skewness"] > 0
+                  else "negatively skewed (tail to the left)")
+        )
+        kurt_desc = (
+            "normal-tailed (mesokurtic)" if abs(s["Kurtosis"]) < 0.5
+            else ("heavy-tailed (leptokurtic)" if s["Kurtosis"] > 0
+                  else "light-tailed (platykurtic)")
+        )
+        text = (
+            f"The dataset has {int(s['Count'])} values ranging from {s['Min']:.1f} to {s['Max']:.1f} "
+            f"(Range = {s['Range']:.1f}).  "
+            f"The center is around a mean of {s['Mean']:.1f} and median of {s['Median']:.1f}.  "
+            f"The spread is {s['Std Dev']:.1f} (std dev) with an IQR of {s['IQR']:.1f}, "
+            f"indicating {'moderate' if s['IQR'] < 20 else 'wide'} variability.  "
+            f"The distribution is {skew_desc} (skewness = {s['Skewness']:.2f}) "
+            f"and {kurt_desc} (kurtosis = {s['Kurtosis']:.2f})."
+        )
+        self.interp_var.set(text)
 
     def _update_charts(self, s):
         """Redraw histogram and box-plot."""
