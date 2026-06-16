@@ -16,16 +16,30 @@ def generate_sample_data():
     return np.random.normal(loc=75, scale=12, size=100).clip(0, 100)
 
 
-def compute_stats(data):
-    """Return a dict of descriptive statistics for *data*."""
+def calculate_mode(data):
+    """Return the true mode value(s), or a message when no mode exists."""
     values, counts = np.unique(data, return_counts=True)
     highest_frequency = counts.max()
 
+    # A dataset has no mode when every value occurs only once.
     if highest_frequency == 1:
-        mode_value = "No mode"
-    else:
-        modes = values[counts == highest_frequency]
-        mode_value = ", ".join(f"{value:.4f}" for value in modes)
+        return "No mode"
+
+    # Include every value tied for the highest frequency.
+    modes = values[counts == highest_frequency]
+
+    def format_mode_value(value):
+        """Display whole numbers cleanly and preserve decimal values."""
+        if np.isclose(value, round(value)):
+            return str(int(round(value)))
+        return f"{value:.4f}".rstrip("0").rstrip(".")
+
+    return ", ".join(format_mode_value(value) for value in modes)
+
+
+def compute_stats(data):
+    """Return a dict of descriptive statistics for *data*."""
+    mode_value = calculate_mode(data)
 
     return {
         "Count":    len(data),
@@ -177,9 +191,13 @@ class StatsDashboard(tk.Tk):
         for i, (name, val) in enumerate(s.items()):
             tag = "odd" if i % 2 else "even"
             display_value = val if isinstance(val, str) else f"{val:.4f}"
-            self.tree.insert("", "end",
-                             values=(name, display_value),
-                             tags=(tag,))
+            self.tree.insert(
+                "",
+                "end",
+                values=(name, display_value),
+                tags=(tag,)
+            )
+
     def _update_interpretation(self, s):
         skew_desc = (
             "approximately symmetric" if abs(s["Skewness"]) < 0.5
