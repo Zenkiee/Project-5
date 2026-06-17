@@ -491,10 +491,20 @@ class StatsDashboard(tk.Tk):
         s = compute_stats(self.data)
 
         fig = plt.figure(figsize=(8.5, 11), facecolor="white")
+<<<<<<< Updated upstream
         gs = fig.add_gridspec(4, 2, height_ratios=[0.5, 3.3, 2.7, 1.5],
                               hspace=0.65, wspace=0.3)
 
         ax_title = fig.add_subplot(gs[0, :])
+=======
+
+        # Sections are positioned with explicit [left, bottom, width, height]
+        # figure-fraction rectangles (rather than GridSpec) so the table gets
+        # a guaranteed, generous height regardless of how many rows it has.
+
+        # ── title ────────────────────────────────────────────────────────────
+        ax_title = fig.add_axes([0.06, 0.93, 0.88, 0.05])
+>>>>>>> Stashed changes
         ax_title.axis("off")
         ax_title.text(0.5, 0.7, "Descriptive Statistics Report",
                       ha="center", va="center", fontsize=18, fontweight="bold",
@@ -502,7 +512,12 @@ class StatsDashboard(tk.Tk):
         ax_title.text(0.5, 0.15, self.status_var.get(),
                       ha="center", va="center", fontsize=9, color="#555")
 
+<<<<<<< Updated upstream
         ax_table = fig.add_subplot(gs[1, :])
+=======
+        # ── summary table ────────────────────────────────────────────────────
+        ax_table = fig.add_axes([0.06, 0.50, 0.88, 0.40])
+>>>>>>> Stashed changes
         ax_table.axis("off")
         rows = [[name, val if isinstance(val, str) else f"{val:.4f}"]
                 for name, val in s.items()]
@@ -518,7 +533,12 @@ class StatsDashboard(tk.Tk):
             else:
                 cell.set_facecolor("#f7f9fc" if row % 2 == 0 else "#ffffff")
 
+<<<<<<< Updated upstream
         ax_hist = fig.add_subplot(gs[2, 0])
+=======
+        # ── histogram ────────────────────────────────────────────────────────
+        ax_hist = fig.add_axes([0.08, 0.24, 0.38, 0.21])
+>>>>>>> Stashed changes
         ax_hist.hist(self.data, bins=20, color="#4a90d9", edgecolor="white", alpha=0.85)
         ax_hist.axvline(s["Mean"], color="#e74c3c", linestyle="--", linewidth=1.5,
                         label=f"Mean = {s['Mean']:.1f}")
@@ -529,7 +549,12 @@ class StatsDashboard(tk.Tk):
         ax_hist.set_ylabel("Frequency")
         ax_hist.legend(fontsize=7)
 
+<<<<<<< Updated upstream
         ax_box = fig.add_subplot(gs[2, 1])
+=======
+        # ── box plot ─────────────────────────────────────────────────────────
+        ax_box = fig.add_axes([0.56, 0.24, 0.38, 0.21])
+>>>>>>> Stashed changes
         ax_box.boxplot(self.data, orientation="vertical", patch_artist=True,
                        boxprops=dict(facecolor="#4a90d9", alpha=0.6),
                        medianprops=dict(color="#e74c3c", linewidth=2),
@@ -539,7 +564,12 @@ class StatsDashboard(tk.Tk):
         ax_box.set_ylabel("Grade")
         ax_box.set_xticks([])
 
+<<<<<<< Updated upstream
         ax_interp = fig.add_subplot(gs[3, :])
+=======
+        # ── interpretation ───────────────────────────────────────────────────
+        ax_interp = fig.add_axes([0.06, 0.04, 0.88, 0.16])
+>>>>>>> Stashed changes
         ax_interp.axis("off")
         ax_interp.text(0, 1.0, "Interpretation", fontsize=11, fontweight="bold",
                        color="#1e3a5f", va="top")
