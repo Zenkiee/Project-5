@@ -1,10 +1,12 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import textwrap
 
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_pdf import PdfPages
 from scipy import stats
 
 
@@ -59,6 +61,32 @@ def compute_stats(data):
     }
 
 
+def justify_text(text, width=95):
+    """Wrap *text* to *width* characters per line and pad inter-word
+    spaces so every line but the last is flush on both edges.
+
+    Relies on the caller rendering the result in a monospace font,
+    since equal character counts only mean equal pixel widths there.
+    """
+    lines = textwrap.wrap(text, width=width)
+    justified_lines = []
+    for i, line in enumerate(lines):
+        words = line.split()
+        if i == len(lines) - 1 or len(words) == 1:
+            justified_lines.append(line)
+            continue
+        total_padding = width - sum(len(w) for w in words)
+        gap_count = len(words) - 1
+        base_spaces, extra_spaces = divmod(total_padding, gap_count)
+        justified_line = ""
+        for j, word in enumerate(words[:-1]):
+            spaces = base_spaces + (1 if j < extra_spaces else 0)
+            justified_line += word + " " * spaces
+        justified_line += words[-1]
+        justified_lines.append(justified_line)
+    return "\n".join(justified_lines)
+
+
 # ── main app ─────────────────────────────────────────────────────────────────
 
 class StatsDashboard(tk.Tk):
@@ -95,6 +123,8 @@ class StatsDashboard(tk.Tk):
                   command=self._new_sample, **btn_style).pack(side="right", padx=6)
         tk.Button(toolbar, text="📂  Load CSV",
                   command=self._load_csv, **btn_style).pack(side="right", padx=6)
+        tk.Button(toolbar, text="📄  Export Report (PDF)",
+                  command=self._export_report, **btn_style).pack(side="right", padx=6)
 
         # ── main body: left = stats table, right = charts ────────────────────
         body = tk.Frame(self, bg="#f0f4f8")
@@ -243,7 +273,7 @@ class StatsDashboard(tk.Tk):
         self.ax_hist.set_facecolor("#fafcff")
 
         # ── box-plot ─────────────────────────────────────────────────────────
-        bp = self.ax_box.boxplot(grades, vert=True, patch_artist=True,
+        bp = self.ax_box.boxplot(grades, orientation="vertical", patch_artist=True,
                                  boxprops=dict(facecolor="#4a90d9", alpha=0.6),
                                  medianprops=dict(color="#e74c3c", linewidth=2),
                                  whiskerprops=dict(linewidth=1.5),
@@ -334,6 +364,90 @@ class StatsDashboard(tk.Tk):
                   bg="#4a90d9", fg="white", padx=12).pack(pady=10)
         self.wait_window(win)
         return result[0]
+
+    def _export_report(self):
+        """Save the current stats, charts, and interpretation as a one-page PDF."""
+        path = filedialog.asksaveasfilename(
+            title="Save PDF Report",
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        try:
+            self._generate_pdf_report(path)
+            messagebox.showinfo("Export Successful", f"Report saved to:\n{path}")
+        except Exception as exc:
+            messagebox.showerror("Error exporting report", str(exc))
+
+    def _generate_pdf_report(self, path):
+        """Render the summary table, charts, and interpretation onto one PDF page."""
+        s = compute_stats(self.data)
+
+        fig = plt.figure(figsize=(8.5, 11), facecolor="white")
+        gs = fig.add_gridspec(4, 2, height_ratios=[0.5, 3.3, 2.7, 1.5], hspace=0.65, wspace=0.3)
+
+        # ── title ────────────────────────────────────────────────────────────
+        ax_title = fig.add_subplot(gs[0, :])
+        ax_title.axis("off")
+        ax_title.text(0.5, 0.7, "Descriptive Statistics Report",
+                      ha="center", va="center", fontsize=18, fontweight="bold",
+                      color="#1e3a5f")
+        ax_title.text(0.5, 0.15, self.status_var.get(),
+                      ha="center", va="center", fontsize=9, color="#555")
+
+        # ── summary table ────────────────────────────────────────────────────
+        ax_table = fig.add_subplot(gs[1, :])
+        ax_table.axis("off")
+        rows = [[name, val if isinstance(val, str) else f"{val:.4f}"]
+                for name, val in s.items()]
+        table = ax_table.table(cellText=rows, colLabels=["Statistic", "Value"],
+                               cellLoc="center", loc="center", bbox=[0, 0, 1, 1])
+        table.auto_set_font_size(False)
+        table.set_fontsize(9)
+        for (row, _col), cell in table.get_celld().items():
+            cell.PAD = 0.12
+            if row == 0:
+                cell.set_facecolor("#1e3a5f")
+                cell.set_text_props(color="white", fontweight="bold")
+            else:
+                cell.set_facecolor("#f7f9fc" if row % 2 == 0 else "#ffffff")
+
+        # ── histogram ────────────────────────────────────────────────────────
+        ax_hist = fig.add_subplot(gs[2, 0])
+        ax_hist.hist(self.data, bins=20, color="#4a90d9", edgecolor="white", alpha=0.85)
+        ax_hist.axvline(s["Mean"], color="#e74c3c", linestyle="--", linewidth=1.5,
+                        label=f"Mean = {s['Mean']:.1f}")
+        ax_hist.axvline(s["Median"], color="#2ecc71", linestyle="--", linewidth=1.5,
+                        label=f"Median = {s['Median']:.1f}")
+        ax_hist.set_title("Grade Distribution", fontsize=10, fontweight="bold")
+        ax_hist.set_xlabel("Grade")
+        ax_hist.set_ylabel("Frequency")
+        ax_hist.legend(fontsize=7)
+
+        # ── box plot ─────────────────────────────────────────────────────────
+        ax_box = fig.add_subplot(gs[2, 1])
+        ax_box.boxplot(self.data, orientation="vertical", patch_artist=True,
+                       boxprops=dict(facecolor="#4a90d9", alpha=0.6),
+                       medianprops=dict(color="#e74c3c", linewidth=2),
+                       flierprops=dict(marker="o", markerfacecolor="#e74c3c",
+                                       markersize=5, alpha=0.6))
+        ax_box.set_title("Box Plot", fontsize=10, fontweight="bold")
+        ax_box.set_ylabel("Grade")
+        ax_box.set_xticks([])
+
+        # ── interpretation ───────────────────────────────────────────────────
+        ax_interp = fig.add_subplot(gs[3, :])
+        ax_interp.axis("off")
+        ax_interp.text(0, 1.0, "Interpretation", fontsize=11, fontweight="bold",
+                       color="#1e3a5f", va="top")
+        justified_text = justify_text(self.interp_var.get(), width=95)
+        ax_interp.text(0, 0.8, justified_text, fontsize=8.5, va="top",
+                       ha="left", fontfamily="monospace", linespacing=1.6)
+
+        with PdfPages(path) as pdf:
+            pdf.savefig(fig)
+        plt.close(fig)
 
 
 # ── entry point ───────────────────────────────────────────────────────────────
