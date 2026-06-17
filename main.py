@@ -12,10 +12,20 @@ from scipy import stats
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
-def generate_sample_data():
-    """Return synthetic student grades (100 values, clipped 0–100)."""
-    np.random.seed(42)
-    return np.random.normal(loc=75, scale=12, size=100).clip(0, 100)
+def generate_sample_data(seed=42):
+    rng = np.random.default_rng(seed)
+
+    lower_limit = (0 - 75) / 12
+    upper_limit = (100 - 75) / 12
+
+    return stats.truncnorm.rvs(
+        lower_limit,
+        upper_limit,
+        loc=75,
+        scale=12,
+        size=100,
+        random_state=rng
+    )
 
 
 def calculate_mode(data):
@@ -393,9 +403,9 @@ class StatsDashboard(tk.Tk):
     # ── button callbacks ─────────────────────────────────────────────────────
 
     def _new_sample(self):
-        np.random.seed(None)
-        self.data = np.random.normal(loc=75, scale=12, size=100).clip(0, 100)
-        self.status_var.set("Using newly generated sample data (n=100)")
+        """Generate a fresh random dataset."""
+        self.data = generate_sample_data(seed=None)
+        self.status_var.set("Using generated sample data (n=100)")
         self._refresh()
 
     def _load_csv(self):
