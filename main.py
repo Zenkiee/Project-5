@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -58,6 +59,32 @@ def compute_stats(data):
         "Q3":       np.percentile(data, 75),
         "IQR":      np.percentile(data, 75) - np.percentile(data, 25),
     }
+
+
+def justify_text(text, width=95):
+    """Wrap *text* to *width* characters per line and pad inter-word
+    spaces so every line but the last is flush on both edges.
+
+    Relies on the caller rendering the result in a monospace font,
+    since equal character counts only mean equal pixel widths there.
+    """
+    lines = textwrap.wrap(text, width=width)
+    justified_lines = []
+    for i, line in enumerate(lines):
+        words = line.split()
+        if i == len(lines) - 1 or len(words) == 1:
+            justified_lines.append(line)
+            continue
+        total_padding = width - sum(len(w) for w in words)
+        gap_count = len(words) - 1
+        base_spaces, extra_spaces = divmod(total_padding, gap_count)
+        justified_line = ""
+        for j, word in enumerate(words[:-1]):
+            spaces = base_spaces + (1 if j < extra_spaces else 0)
+            justified_line += word + " " * spaces
+        justified_line += words[-1]
+        justified_lines.append(justified_line)
+    return "\n".join(justified_lines)
 
 
 # ── main app ─────────────────────────────────────────────────────────────────
@@ -358,7 +385,7 @@ class StatsDashboard(tk.Tk):
         s = compute_stats(self.data)
 
         fig = plt.figure(figsize=(8.5, 11), facecolor="white")
-        gs = fig.add_gridspec(4, 2, height_ratios=[0.6, 2.6, 3, 1.3], hspace=0.65, wspace=0.3)
+        gs = fig.add_gridspec(4, 2, height_ratios=[0.5, 3.3, 2.7, 1.5], hspace=0.65, wspace=0.3)
 
         # ── title ────────────────────────────────────────────────────────────
         ax_title = fig.add_subplot(gs[0, :])
@@ -379,6 +406,7 @@ class StatsDashboard(tk.Tk):
         table.auto_set_font_size(False)
         table.set_fontsize(9)
         for (row, _col), cell in table.get_celld().items():
+            cell.PAD = 0.12
             if row == 0:
                 cell.set_facecolor("#1e3a5f")
                 cell.set_text_props(color="white", fontweight="bold")
@@ -413,8 +441,9 @@ class StatsDashboard(tk.Tk):
         ax_interp.axis("off")
         ax_interp.text(0, 1.0, "Interpretation", fontsize=11, fontweight="bold",
                        color="#1e3a5f", va="top")
-        ax_interp.text(0, 0.75, self.interp_var.get(), fontsize=8.5,
-                       va="top", wrap=True)
+        justified_text = justify_text(self.interp_var.get(), width=95)
+        ax_interp.text(0, 0.8, justified_text, fontsize=8.5, va="top",
+                       ha="left", fontfamily="monospace", linespacing=1.6)
 
         with PdfPages(path) as pdf:
             pdf.savefig(fig)
