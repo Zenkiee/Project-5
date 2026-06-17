@@ -78,7 +78,7 @@ class StatsDashboard(tk.Tk):
         super().__init__()
         self.title("Basic Descriptive Statistics Dashboard")
         self.geometry("1100x720")
-        self.resizable(True, True)
+        self.resizable(False, False)
         self.configure(bg="#f0f4f8")
 
         self.data = generate_sample_data()
